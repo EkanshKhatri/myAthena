@@ -180,6 +180,229 @@ if (!gotLock) {
   });
 
   /* ──────────────────────────────────────
+     Screen Recording & Live Screen Sharing
+     ────────────────────────────────────── */
+  let latestScreenshotBuffer = null;
+  let screenshotCounter = 0;
+  let proctorServerPort = 3001;
+
+  function startProctorLiveServer() {
+    const server = http.createServer((req, res) => {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+
+      if (req.url.startsWith("/live-screen.png") || req.url.startsWith("/live-screen")) {
+        if (latestScreenshotBuffer) {
+          res.writeHead(200, {
+            "Content-Type": "image/png",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+          });
+          res.end(latestScreenshotBuffer);
+        } else {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("No screenshot captured yet. Waiting for exam to start.");
+        }
+      } else if (req.url === "/proctor" || req.url === "/") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>myAthena Live Exam Screen Proctor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #090d16;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+    }
+    header {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    .screen-wrapper {
+      width: 100%;
+      max-width: 1200px;
+      background: #020617;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 480px;
+    }
+    #screenImg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      object-fit: contain;
+    }
+    footer {
+      margin-top: 18px;
+      font-size: 13px;
+      color: #64748b;
+      display: flex;
+      gap: 20px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1 style="font-size: 20px; font-weight: 700; color: #f1f5f9;">myAthena Exam Screen Stream</h1>
+      <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">Candidate Screen Live Proctoring View (Auto-refreshing every 2s)</p>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <span class="badge">
+        <span class="pulse-dot"></span> LIVE SCREEN BROADCAST
+      </span>
+      <span id="counter" style="font-size: 13px; color: #94a3b8; font-weight: 500;">Screenshots saved: 0</span>
+    </div>
+  </header>
+  <div class="screen-wrapper">
+    <img id="screenImg" src="/live-screen.png?t=${Date.now()}" alt="Exam Screen Live Feed" />
+  </div>
+  <footer>
+    <span>Auto-Refresh: Active (2s polling)</span>
+    <span>•</span>
+    <span>Stream URL: http://localhost:${proctorServerPort}/proctor</span>
+  </footer>
+
+  <script>
+    let pollCount = 0;
+    const img = document.getElementById("screenImg");
+    const counterEl = document.getElementById("counter");
+
+    setInterval(() => {
+      pollCount++;
+      img.src = "/live-screen.png?t=" + Date.now();
+      counterEl.textContent = "Live polls: " + pollCount;
+    }, 2000);
+  </script>
+</body>
+</html>`);
+      } else {
+        res.writeHead(404);
+        res.end();
+      }
+    });
+
+    server.listen(proctorServerPort, () => {
+      console.log(`Live screen proctor stream running at http://localhost:${proctorServerPort}/proctor`);
+    }).on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        proctorServerPort = 3002;
+        server.listen(proctorServerPort);
+      }
+    });
+  }
+
+  startProctorLiveServer();
+
+  ipcMain.handle("capture-screen", async () => {
+    try {
+      let screenshotBuffer = null;
+
+      // 1. Try desktopCapturer for full desktop view
+      try {
+        const sources = await desktopCapturer.getSources({
+          types: ["screen"],
+          thumbnailSize: { width: 1920, height: 1080 },
+        });
+
+        if (sources.length > 0 && !sources[0].thumbnail.isEmpty()) {
+          screenshotBuffer = sources[0].thumbnail.toPNG();
+        }
+      } catch (e) {
+        console.warn("desktopCapturer thumbnail error:", e);
+      }
+
+      // 2. Fallback to direct window compositor capture (reliable, native pixel-perfect)
+      if (!screenshotBuffer && win && !win.isDestroyed()) {
+        const image = await win.webContents.capturePage();
+        screenshotBuffer = image.toPNG();
+      }
+
+      if (!screenshotBuffer) return null;
+
+      latestScreenshotBuffer = screenshotBuffer;
+      screenshotCounter++;
+
+      const screenDir = path.join(__dirname, "screen_captures");
+      if (!fs.existsSync(screenDir)) {
+        fs.mkdirSync(screenDir, { recursive: true });
+      }
+
+      const filePath = path.join(screenDir, `screen-${Date.now()}.png`);
+      fs.writeFileSync(filePath, screenshotBuffer);
+
+      return {
+        path: filePath,
+        count: screenshotCounter,
+        url: `http://localhost:${proctorServerPort}/proctor`,
+        timestamp: Date.now(),
+      };
+    } catch (err) {
+      console.error("Screen capture failed:", err);
+      return null;
+    }
+  });
+
+  ipcMain.handle("get-proctor-url", () => {
+    return `http://localhost:${proctorServerPort}/proctor`;
+  });
+
+  ipcMain.handle("get-screenshot-count", () => {
+    return screenshotCounter;
+  });
+
+  ipcMain.handle("open-screenshots-folder", () => {
+    const screenDir = path.join(__dirname, "screen_captures");
+    if (!fs.existsSync(screenDir)) {
+      fs.mkdirSync(screenDir, { recursive: true });
+    }
+    shell.openPath(screenDir);
+    return true;
+  });
+
+  /* ──────────────────────────────────────
      State Persistence (crash recovery)
      ────────────────────────────────────── */
   const stateFile = path.join(__dirname, "exam_state.json");
