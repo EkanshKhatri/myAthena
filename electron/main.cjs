@@ -70,7 +70,34 @@ if (!gotLock) {
       }
     });
 
+    // Intercept Command+Q (macOS) / Ctrl+Q hardware keystrokes and confirm before quitting
+    win.webContents.on("before-input-event", async (event, input) => {
+      if (
+        (input.meta || input.control) &&
+        input.key.toLowerCase() === "q" &&
+        input.type === "keyDown"
+      ) {
+        event.preventDefault();
+
+        const choice = await dialog.showMessageBox(win, {
+          type: "warning",
+          title: "Quit Exam Warning",
+          message: "Do you want to quit the exam?",
+          detail:
+            "Quitting before completing the assessment will terminate your exam session. Are you sure you want to quit?",
+          buttons: ["Cancel", "Quit Exam"],
+          defaultId: 0,
+          cancelId: 0,
+        });
+
+        if (choice.response === 1) {
+          isQuittingAllowed = true;
+          app.quit();
+        }
+      }
+    });
   }
+
   /* ──────────────────────────────────────
      Focus second-instance window
      ────────────────────────────────────── */
@@ -533,6 +560,32 @@ if (!gotLock) {
     createWindow();
   });
 
+  app.on("before-quit", async (event) => {
+    if (isQuittingAllowed) return;
+
+    event.preventDefault();
+
+    if (win && !win.isDestroyed()) {
+      const choice = await dialog.showMessageBox(win, {
+        type: "warning",
+        title: "Quit Exam Warning",
+        message: "Do you want to quit the exam?",
+        detail:
+          "Quitting before completing the assessment will terminate your exam session. Are you sure you want to quit?",
+        buttons: ["Cancel", "Quit Exam"],
+        defaultId: 0,
+        cancelId: 0,
+      });
+
+      if (choice.response === 1) {
+        isQuittingAllowed = true;
+        app.quit();
+      }
+    } else {
+      isQuittingAllowed = true;
+      app.quit();
+    }
+  });
 
   app.on("window-all-closed", () => {
     app.quit();
