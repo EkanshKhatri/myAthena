@@ -171,6 +171,63 @@ function App() {
 
 
 
+  /* ── camera snapshot capture (every 5s during exam) ── */
+  async function takeCameraPhoto() {
+    const video = hiddenVideoRef.current;
+    const canva = canvaRef.current;
+
+    if (!video || !canva) return;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    canva.width = video.videoWidth;
+    canva.height = video.videoHeight;
+
+    const ctx = canva.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+
+    const image = canva.toDataURL("image/png");
+
+    if (window.electronAPI?.savePhoto) {
+      try {
+        await window.electronAPI.savePhoto(image);
+      } catch (err) {
+        console.warn("Failed to save camera snapshot:", err);
+      }
+    }
+  }
+
+  /* ── periodic screen capture & camera photo capture (every 5 seconds) ── */
+  useEffect(() => {
+    if (page !== "exam") return;
+    if (!window.electronAPI) return;
+
+    // Take initial captures on exam start
+    takeExamScreenshot();
+    takeCameraPhoto();
+
+    const interval = setInterval(async () => {
+      await takeExamScreenshot();
+      await takeCameraPhoto();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [page]);
+
+  async function takeExamScreenshot() {
+    if (window.electronAPI?.captureScreen) {
+      try {
+        const res = await window.electronAPI.captureScreen();
+        if (res && res.count) {
+          setScreenshotCount(res.count);
+        } else {
+          setScreenshotCount((prev) => prev + 1);
+        }
+      } catch (err) {
+        console.warn("Screen capture failed:", err);
+      }
+    }
+  }
+
   /* ── auto-save state (every 10s during exam) ── */
   useEffect(() => {
     if (page !== "exam") return;
