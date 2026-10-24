@@ -180,6 +180,22 @@ if (!gotLock) {
   });
 
   /* ──────────────────────────────────────
+     Camera Photo Capture
+     ────────────────────────────────────── */
+  ipcMain.handle("save-photo", (event, image) => {
+    const feedDir = path.join(__dirname, "camera_feed");
+    if (!fs.existsSync(feedDir)) {
+      fs.mkdirSync(feedDir, { recursive: true });
+    }
+
+    const imageData = image.split(",")[1];
+    const filePath = path.join(feedDir, `photo-${Date.now()}.png`);
+    fs.writeFileSync(filePath, Buffer.from(imageData, "base64"));
+
+    return filePath;
+  });
+
+  /* ──────────────────────────────────────
      Screen Recording & Live Screen Sharing
      ────────────────────────────────────── */
   let latestScreenshotBuffer = null;
@@ -399,6 +415,15 @@ if (!gotLock) {
       fs.mkdirSync(screenDir, { recursive: true });
     }
     shell.openPath(screenDir);
+    return true;
+  });
+
+  ipcMain.handle("open-camera-folder", () => {
+    const feedDir = path.join(__dirname, "camera_feed");
+    if (!fs.existsSync(feedDir)) {
+      fs.mkdirSync(feedDir, { recursive: true });
+    }
+    shell.openPath(feedDir);
     return true;
   });
 
