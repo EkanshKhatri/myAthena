@@ -27,3 +27,7 @@ dist-ssr
 electron/camera_feed/
 electron/screen_captures/
 electron/exam_state.json
+
+# Build & Release Output
+release/
+*.dmg

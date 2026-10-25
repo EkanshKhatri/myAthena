@@ -39,8 +39,14 @@ if (!gotLock) {
       },
     });
 
-    win.loadURL("http://localhost:5173/");
-    win.webContents.openDevTools({ mode: "detach" });
+    if (app.isPackaged) {
+      win.loadFile(path.join(__dirname, "../dist/index.html"));
+    } else {
+      win.loadURL("http://localhost:5173/").catch(() => {
+        win.loadFile(path.join(__dirname, "../dist/index.html"));
+      });
+      win.webContents.openDevTools({ mode: "detach" });
+    }
 
     // Monitor changes in display devices
     screen.on("display-added", () => {
