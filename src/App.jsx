@@ -1,3 +1,7 @@
+/**
+ * myAthena - Main Application Orchestrator
+ * Assessment Lifecycle: SystemCheck -> MainExam -> ResultPage
+ */
 import { useEffect, useRef, useState, useCallback } from "react";
 import "./App.css";
 
