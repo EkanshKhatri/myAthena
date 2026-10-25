@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 function MainExam({
   questions,
   currentIndex,
@@ -67,6 +69,41 @@ function MainExam({
     setAnswer(currentQuestion.id, e.target.value);
   }
 
+  /* ── Keyboard Accessibility Navigation ── */
+  useEffect(() => {
+    function handleKeyDown(e) {
+      // Do not trigger hotkeys if student is typing in an input
+      if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+
+      if (key === "arrowright" || key === "n") {
+        e.preventDefault();
+        handleNext();
+      } else if (key === "arrowleft" || key === "p") {
+        e.preventDefault();
+        handlePrevious();
+      } else if (key === "m") {
+        e.preventDefault();
+        toggleMarkForReview();
+      } else if (["1", "2", "3", "4"].includes(e.key) && currentQuestion) {
+        const optionIdx = parseInt(e.key, 10) - 1;
+        if (currentQuestion.type === "mcq" && currentQuestion.options?.[optionIdx] !== undefined) {
+          e.preventDefault();
+          handleMcqChange(optionIdx);
+        } else if (currentQuestion.type === "true-false") {
+          if (optionIdx === 0) handleTrueFalseChange(0);
+          if (optionIdx === 1) handleTrueFalseChange(1);
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentIndex, questions.length, currentQuestion, answers, markedForReview]);
+
   function getTypeBadge(type) {
     switch (type) {
       case "mcq":
@@ -98,53 +135,62 @@ function MainExam({
 
     switch (type) {
       case "mcq":
-        return (options || []).map((option, index) => (
-          <label key={index} className="option-row">
+        return options.map((opt, idx) => (
+          <label
+            key={idx}
+            className={`option-label ${
+              currentAnswer === idx ? "option-selected" : ""
+            }`}
+          >
             <input
               type="radio"
-              name={`question-${currentQuestion.id}`}
-              checked={currentAnswer === index}
-              onChange={() => handleMcqChange(index)}
+              name={`q-${currentQuestion.id}`}
+              checked={currentAnswer === idx}
+              onChange={() => handleMcqChange(idx)}
             />
-            <span>{option}</span>
+            <span className="opt-key-hint">{idx + 1}</span>
+            <span>{opt}</span>
           </label>
         ));
 
       case "multi-select":
-        return (options || []).map((option, index) => (
-          <label key={index} className="option-row">
-            <input
-              type="checkbox"
-              checked={(currentAnswer || []).includes(index)}
-              onChange={() => handleMultiSelectChange(index)}
-            />
-            <span>{option}</span>
-          </label>
-        ));
+        return options.map((opt, idx) => {
+          const selectedList = currentAnswer || [];
+          const isChecked = selectedList.includes(idx);
+          return (
+            <label
+              key={idx}
+              className={`option-label ${isChecked ? "option-selected" : ""}`}
+            >
+              <input
+                type="checkbox"
+                name={`q-${currentQuestion.id}-${idx}`}
+                checked={isChecked}
+                onChange={() => handleMultiSelectChange(idx)}
+              />
+              <span>{opt}</span>
+            </label>
+          );
+        });
 
       case "true-false":
-        return (
-          <>
-            <label className="option-row">
-              <input
-                type="radio"
-                name={`question-${currentQuestion.id}`}
-                checked={currentAnswer === 0}
-                onChange={() => handleTrueFalseChange(0)}
-              />
-              <span>True</span>
-            </label>
-            <label className="option-row">
-              <input
-                type="radio"
-                name={`question-${currentQuestion.id}`}
-                checked={currentAnswer === 1}
-                onChange={() => handleTrueFalseChange(1)}
-              />
-              <span>False</span>
-            </label>
-          </>
-        );
+        return ["True", "False"].map((opt, idx) => (
+          <label
+            key={idx}
+            className={`option-label ${
+              currentAnswer === idx ? "option-selected" : ""
+            }`}
+          >
+            <input
+              type="radio"
+              name={`q-${currentQuestion.id}`}
+              checked={currentAnswer === idx}
+              onChange={() => handleTrueFalseChange(idx)}
+            />
+            <span className="opt-key-hint">{idx === 0 ? "1" : "2"}</span>
+            <span>{opt}</span>
+          </label>
+        ));
 
       case "fill-blank":
         return (
@@ -177,6 +223,14 @@ function MainExam({
 
       {/* Options */}
       <div className="options-container">{renderOptions()}</div>
+
+      {/* Keyboard Shortcuts Hint Bar */}
+      <div className="shortcuts-bar">
+        <span className="shortcut-tag"><kbd>←</kbd> / <kbd>P</kbd> Prev</span>
+        <span className="shortcut-tag"><kbd>→</kbd> / <kbd>N</kbd> Next</span>
+        <span className="shortcut-tag"><kbd>M</kbd> Mark</span>
+        <span className="shortcut-tag"><kbd>1</kbd>–<kbd>4</kbd> Select</span>
+      </div>
 
       {/* Question Toolbar */}
       <div className="question-actions">
