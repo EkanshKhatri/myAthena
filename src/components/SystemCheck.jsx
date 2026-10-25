@@ -318,6 +318,54 @@ function SystemCheck({ onComplete }) {
                   🔄 Retest
                 </button>
               </div>
+
+              {/* Real-time Ambient Noise Calibration Indicator */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  marginTop: 8,
+                  background:
+                    micVolume > 25
+                      ? "rgba(239, 68, 68, 0.08)"
+                      : micVolume > 6
+                      ? "rgba(16, 185, 129, 0.08)"
+                      : "rgba(59, 130, 246, 0.08)",
+                  border: `1px solid ${
+                    micVolume > 25
+                      ? "rgba(239, 68, 68, 0.25)"
+                      : micVolume > 6
+                      ? "rgba(16, 185, 129, 0.25)"
+                      : "rgba(59, 130, 246, 0.25)"
+                  }`,
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 500, color: "#334155" }}>
+                  Acoustic Floor:
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.3px",
+                    color:
+                      micVolume > 25
+                        ? "#dc2626"
+                        : micVolume > 6
+                        ? "#059669"
+                        : "#2563eb",
+                  }}
+                >
+                  {micVolume > 25
+                    ? "⚠️ Elevated Background Noise"
+                    : micVolume > 6
+                    ? "✅ Speech Detected / Optimal"
+                    : "🛡️ Quiet Assessment Room"}
+                </span>
+              </div>
             </div>
           ) : (
             <div style={{ textAlign: "center", padding: "14px 8px" }}>
